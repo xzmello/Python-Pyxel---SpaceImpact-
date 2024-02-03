@@ -1,0 +1,273 @@
+import pyxel as px
+import random
+
+class Jogador:
+    #função para definir atributos do jogador
+    def __init__(self, x, y, velocidade):
+        self.x = x
+        self.y = y 
+        self.velocidade = velocidade
+        self.tiros = []
+    
+    #funçao para dar udate ao jogador
+    def update(self):
+        if px.btn(px.KEY_UP):
+            self.y -= self.velocidade
+        if px.btn(px.KEY_DOWN):
+            self.y += self.velocidade 
+        if px.btn(px.KEY_RIGHT):
+            self.x += self.velocidade
+        if px.btn(px.KEY_LEFT):
+            self.x -= self.velocidade
+        if px.btnp(px.KEY_SPACE):
+            px.play(0,0)
+            self.tiros.append(TiroJogador(self.x + 10, self.y +3, 3))
+
+class Vida:
+    #função para definir atrbutos da vida
+    def __init__(self, max_vidas):
+        self.max_vidas = max_vidas
+        self.vida_atual = max_vidas
+    #função para contar dano sofrido 
+    def dano(self):
+        self.vida_atual -= 1
+       
+class TiroJogador:
+    #função para definir atributos do tiro
+    def  __init__(self, x, y, velocidade):
+        self.x = x
+        self.y = y
+        self.velocidade = velocidade
+    #função para dar update ao tiro
+    def update(self):
+        self.x += self.velocidade
+
+class Inimigo: 
+    #função para definir atributos do inimigo
+    def __init__(self, x, y, velocidade):
+        self.x = x
+        self.y = y
+        self.velocidade = velocidade
+    #função para dar update ao inimigo
+    def update(self):
+        self.x -= self.velocidade 
+
+#função para chamar inimigos
+def Cria_Inimigo():
+    x = px.width
+    y = random.randint(16, px.height - 16)
+    velocidade = random.uniform(1,2)
+    return Inimigo(x, y, velocidade)
+
+class Meteoro:
+    #função para definir atributos do meteoro
+    def __init__(self):
+        self.x = random.randint(0, px.width - 8)
+        self. y = 0
+        self.velocidadeX = random.uniform(1,2.5)
+        self.velocidadeY = random.uniform(1,2.5)
+    #função para dar update ao meteoro
+    def update(self):
+        self.x -= self.velocidadeX
+        self.y += self.velocidadeY
+#função para chamar o meteoro
+def Cria_Meteoro():
+    return Meteoro()
+
+class Boss:
+    #função para definir atributos do boss
+    def __init__(self):
+        self.x = px.width -20 
+        self.y = px.height // 2
+        self.velocidadeX = 2
+        self.direcao = 1
+        self.vidas = 250
+        self.timer = 0 
+        self.intervalo_disparo = 45
+        self.tiros = []
+        self.up = False
+        self.down = False
+    #função para dar update ao boss
+    def update(self):
+        if self.vidas > 0:
+            #verifica limites de movimentação do boss na horizontal
+            if self.x <= 27:
+                self.direcao = 1
+            elif self.x >= px.width -27:
+                self.direcao = -1
+                #verifica variaveis de movimentação na vertical
+                if not self.up and not self.down:
+                    #gera numero aleatorio de 0 a 1, 50% de chance de subir ou descer 
+                    if random.random() < 0.5:
+                        self.up = True
+                    else: 
+                        self.down = True
+            #se a variavel up for True movimenta o boss para cima
+            if self.up:
+                if self.y > 10:
+                    self.y -= 2
+                else:
+                    self.up = False
+            #se a variavel down for True movimenta o boss para baixo
+            elif self.down:
+                if self.y < px.height - 30:
+                    self.y += 2
+                else: 
+                    self.down = False
+            #atualiza posição horizontal com base na direção 
+            self.x += self.velocidadeX * self.direcao
+
+            self.timer += 1
+            #dispara com base no tempo de intervalo definido 
+            if self.timer >= self.intervalo_disparo:
+                self.disparar()
+                self.timer = 0
+    #função para disparo do boss
+    def disparar(self):
+        self.tiros.append(TiroBoss(self.x, self.y + 7, 3))
+    #função para contar dano do boss
+    def dano(self, dano):
+        self.vidas -= dano
+        if self.vidas <= 0:
+            boss = None 
+
+class TiroBoss:
+    #função para definir atributos dos tiros do boss
+    def __init__(self, x, y, velocidade):
+        self.x = x
+        self.y = y
+        self.velocidade = velocidade 
+    #função para dar update ao tiro
+    def update(self):
+        self.x -= self.velocidade
+
+dano_tiro = 5
+boss = None
+
+#inicializa a tela de jogo e carerga as artes
+px.init(width=160, height=120)
+px.load("art.pyxres")
+
+#cria jogador
+jogador = Jogador(80, 100, 2)
+
+#listas para controlar inimigos e meteoros
+inimigos = []
+meteoros = []
+
+#variaveis para controlar emissao de meteoros
+meteoro_timer = 0
+meteoro_intervalo = 60
+
+#vida inicial do jogador
+vidas = Vida(3)
+
+#variavel que chamara o boss ao atingir 15
+inimigos_derrotados = 0
+
+game_over = False
+
+def update(): 
+    global inimigos, jogador, game_over, meteoros, meteoro_timer, vidas, inimigos_derrotados, boss
+    
+    if not game_over:
+        jogador.update()
+        
+        #chama inimigo a cada 60 quadros
+        if px.frame_count % 60 == 0:
+            if inimigos_derrotados < 15:
+                inimigos.append(Cria_Inimigo())
+            else: 
+                if boss is None:
+                    boss = Boss()
+
+        #atualizações do boss
+        if boss is not None:
+            boss.update()
+            for tiro_boss in boss.tiros:
+                tiro_boss.update()
+        
+        #criação de meteoros
+        meteoro_timer += 1 
+        if meteoro_timer >= meteoro_intervalo:
+            meteoros.append(Cria_Meteoro())
+            meteoro_timer = 0 
+        
+        #atualização dos inimigos
+        for inimigo in inimigos:
+            inimigo.update()
+
+        for tiro in jogador.tiros:
+            tiro.update()
+            #verifica se ocorre a colisao do disparo para os inimigos na lista
+            for inimigo in inimigos:
+                if(tiro.x + 2 > inimigo.x and tiro.x < inimigo.x + 7 and tiro.y + 2 > inimigo.y and tiro.y < inimigo.y+7):
+                    inimigos.remove(inimigo)
+                    inimigos_derrotados += 1 
+                    jogador.tiros.remove(tiro)
+        #verifica se ocorre a colisao do jogador para os inimigos da lista
+        for inimigo in inimigos:
+            if (jogador.x + 10 > inimigo.x + 7 and jogador.x < inimigo.x + 7 and jogador.y + 7 > inimigo.y and jogador.y < inimigo.y + 7):
+                inimigos.remove(inimigo)
+                vidas.dano()
+        #atualiza os meteoros e verifica colisao com jogador
+        for meteoro in meteoros:
+            meteoro.update()
+            if (jogador.x + 10 > meteoro.x and jogador.x < meteoro.x + 8 and jogador.y + 7 > meteoro.y and jogador.y < meteoro.y + 8):
+                vidas.dano()
+                meteoros.remove(meteoro)
+        
+        if boss is not None:
+            #verifica colisao do boss com jogador
+            if (jogador.x + 10 > boss.x and jogador.x < boss.x + 24 and jogador.y + 7 > boss.y and jogador.y < boss.y + 19):
+                vidas.dano()
+            
+            for tiro_boss in boss.tiros:
+                #verifica colisao dos tiros do boss com o jogador
+                if (tiro_boss.x + 2 > jogador.x and tiro_boss.x < jogador.x + 10 and tiro_boss.y + 2 > jogador.y and tiro_boss.y < jogador.y + 7):
+                    vidas.dano()
+                    boss.tiros.remove(tiro_boss)
+
+            for tiro in jogador.tiros:
+                #verifica colisao dos tiros do jogador com o boss
+                if (tiro.x + 2 > boss.x and tiro.x < boss.x + 24 and tiro.y + 2 > boss.y and tiro.y < boss.y + 19):
+                    boss.dano(dano_tiro)
+                    jogador.tiros.remove(tiro)
+            if boss.vidas <= 0:
+                px.cls(0)
+        #verifica condição principal para rodar o jogo
+        if vidas.vida_atual <= 0:
+            game_over = True
+        
+def draw():
+    global inimigos, jogador, game_over,meteoros, boss
+    #limpa a tela na cor preta
+    px.cls(0)
+    #desenha o jogador na tela
+    px.blt(jogador.x, jogador.y, 0, 0, 0, 10, 7)
+    #desenha inimigos da lista na tela
+    for inimigo in inimigos:
+        px.blt(inimigo.x, inimigo.y, 0, 0, 8, 7, 15, 0)
+    #desenha tiros da lista na tela
+    for tiro in jogador.tiros:
+        px.rect(tiro.x, tiro.y, 2, 2, 7)
+    #desenha meteoros da lista na tela
+    for meteoro in meteoros :
+        px.blt(meteoro.x, meteoro.y, 0, 8, 8, 8, 8, 0)
+    #verifica se boss esta ativo e desenha 
+    if boss is not None:
+        px.blt(boss.x, boss.y, 0, 21, 0, 24, 19, 0)
+        #verifica morte do boss
+        if boss.vidas <= 0:
+            px.text(55, 50, "Voce Venceu!", 8)
+        #desenha tiros do boss
+        for tiro in boss.tiros:
+            px.rect(tiro.x, tiro. y, 2, 2, 8)
+    #dados do jogo 
+    px.text(5, 5, f"Vidas: {vidas.vida_atual}", 7)
+    px.text(5, 11, f"Inimigos derrotados: {inimigos_derrotados}",7)
+    #tela de game over
+    if game_over:
+        px.text(60, 50, "Game Over", 8)
+
+px.run(update, draw)
